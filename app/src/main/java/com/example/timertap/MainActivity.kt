@@ -45,6 +45,12 @@ class MainActivity : Activity() {
             second.setText("0")
             millis.setText("0")
         }
+        findViewById<Button>(R.id.btnMidnight).setOnClickListener {
+            hour.setText("0")
+            minute.setText("0")
+            second.setText("0")
+            millis.setText("0")
+        }
         findViewById<Button>(R.id.btnShow).setOnClickListener {
             val prefs = read()
             prefs.save(this)

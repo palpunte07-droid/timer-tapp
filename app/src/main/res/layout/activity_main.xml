@@ -53,11 +53,24 @@
                 android:maxLength="3" android:textSize="24sp" android:importantForAutofill="no" />
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btnNow"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1分後をセット" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnNow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1分後をセット" />
+
+            <Button
+                android:id="@+id/btnMidnight"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="0時0分0秒をセット" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
