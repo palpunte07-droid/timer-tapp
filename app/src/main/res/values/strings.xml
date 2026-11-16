@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">タイマータップ</string>
+    <string name="service_description">指定した時刻に、画面上のマーカー位置を自動でタップします。タップ操作の実行と、マーカー・操作パネルの表示にこの権限を使用します。画面の内容は読み取りません。</string>
+</resources>
