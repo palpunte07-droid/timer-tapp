@@ -72,11 +72,29 @@
                 android:text="0時0分0秒をセット" />
         </LinearLayout>
 
+        <CheckBox
+            android:id="@+id/useNtp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="標準時刻(NTP)に同期して時計のずれを自動補正する" />
+
+        <TextView
+            android:id="@+id/ntpStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnSync"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="今すぐ同期" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:text="タップ回数"
+            android:text="繰り返し回数(マーカーを 1→2→… と順にタップするのを何回行うか)"
             android:textStyle="bold" />
         <EditText android:id="@+id/count" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:inputType="number" android:maxLength="4" android:importantForAutofill="no" />
@@ -85,7 +103,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="タップ間隔(ミリ秒・30以上)"
+            android:text="タップとタップの間隔(ミリ秒・30以上)"
             android:textStyle="bold" />
         <EditText android:id="@+id/interval" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:inputType="number" android:maxLength="6" android:importantForAutofill="no" />
@@ -94,10 +112,36 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="時刻補正(ミリ秒。マイナスで早く、プラスで遅くタップ)"
+            android:text="手動の微調整(ミリ秒。マイナスで早く、プラスで遅くタップ)"
             android:textStyle="bold" />
         <EditText android:id="@+id/offset" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:inputType="numberSigned" android:maxLength="6" android:importantForAutofill="no" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="保存した設定(時刻・回数・間隔・マーカーの位置)"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/presetSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button android:id="@+id/btnPresetLoad" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="読み込む" />
+            <Button android:id="@+id/btnPresetSave" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="保存" />
+            <Button android:id="@+id/btnPresetDelete" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="削除" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnShow"
@@ -110,6 +154,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="使い方:\n1. ユーザー補助で「タイマータップ」を有効にする\n2. 時刻を設定して「保存してパネルを表示」\n3. タップしたいアプリを開き、赤い照準マーカーをドラッグして位置を合わせる\n4. パネルの ▶ を押すと待機開始。設定時刻にマーカー位置をタップします\n\n設定時刻をすでに過ぎている場合は翌日の同時刻になります。" />
+            android:text="使い方:\n1. ユーザー補助で「タイマータップ」を有効にする\n2. 時刻を設定して「保存してパネルを表示」\n3. タップしたいアプリを開き、番号付きの照準マーカーをドラッグして位置を合わせる\n4. 複数の場所をタップしたいときは、パネルの ＋ でマーカーを増やす(－ で減らす)。番号順にタップします\n5. パネルの ▶ を押すと待機開始。設定時刻にマーカー 1 をタップし、以降は「間隔」ごとに次のマーカーをタップします\n\n待機中は画面が消えないようにします。設定時刻をすでに過ぎている場合は翌日の同時刻になります。マーカーの位置は自動で記憶されます。" />
     </LinearLayout>
 </ScrollView>

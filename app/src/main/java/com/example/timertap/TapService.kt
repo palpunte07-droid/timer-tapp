@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /**
- * 画面上にマーカーと操作パネルを重ねて表示し、設定時刻にマーカー位置をタップする。
+ * 画面上にマーカーと操作パネルを重ねて表示し、設定時刻にマーカー位置を番号順にタップする。
  * タップは AccessibilityService.dispatchGesture で行う。
  */
 class TapService : AccessibilityService() {
@@ -38,14 +38,19 @@ class TapService : AccessibilityService() {
         @Volatile
         var instance: TapService? = null
             private set
+
+        /** 待機中、これより古くなったら時刻を取り直す。 */
+        private const val RESYNC_AGE_MS = 10 * 60_000L
     }
+
+    private class Marker(val view: MarkerView, val lp: WindowManager.LayoutParams)
 
     private val ui = Handler(Looper.getMainLooper())
     private lateinit var wm: WindowManager
 
-    private var marker: MarkerView? = null
-    private var markerLp: WindowManager.LayoutParams? = null
+    private val markers = mutableListOf<Marker>()
     private var panel: LinearLayout? = null
+    private var panelLp: WindowManager.LayoutParams? = null
     private var clockText: TextView? = null
     private var stateText: TextView? = null
     private var startButton: TextView? = null
@@ -53,14 +58,20 @@ class TapService : AccessibilityService() {
     /** 待機セッションの世代。変わったら実行中のワーカーは中断する。 */
     private val generation = AtomicInteger(0)
     @Volatile private var armed = false
+    @Volatile private var useNtp = true
     private var targetAt = 0L
+    private var finalSyncDone = false
 
     private val clockFormat = SimpleDateFormat("HH:mm:ss.S", Locale.US)
     private val ticker = object : Runnable {
         override fun run() {
-            val now = System.currentTimeMillis()
+            val now = now()
             clockText?.text = clockFormat.format(Date(now))
-            if (armed) stateText?.text = "待機中 あと ${formatRemaining(targetAt - now)}"
+            if (armed) {
+                val remaining = targetAt - now
+                stateText?.text = "待機中 あと ${formatRemaining(remaining)}"
+                resyncIfNeeded(remaining)
+            }
             ui.postDelayed(this, 50)
         }
     }
@@ -79,34 +90,30 @@ class TapService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
     override fun onInterrupt() = Unit
 
+    /** 補正を使う設定なら標準時刻、そうでなければ端末の時計。 */
+    private fun now(): Long = if (useNtp) TimeSync.now() else System.currentTimeMillis()
+
     // ---- オーバーレイ ----
 
     fun showOverlay() {
+        val prefs = Prefs.load(this)
+        useNtp = prefs.useNtp
+        if (useNtp && !TimeSync.synced) TimeSync.syncAsync { refreshIdleState() }
         if (panel != null) {
             refreshIdleState()
             return
         }
-        val size = dp(56)
-        val metrics = resources.displayMetrics
-
-        val m = MarkerView(this)
-        val mLp = overlayParams(size, size).apply {
-            x = metrics.widthPixels / 2 - size / 2
-            y = metrics.heightPixels / 2 - size / 2
-        }
-        makeDraggable(m, m, mLp)
-        wm.addView(m, mLp)
-        marker = m
-        markerLp = mLp
+        createMarkers(prefs.points)
 
         val p = buildPanel()
         val pLp = overlayParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT).apply {
             x = dp(16)
             y = dp(96)
         }
-        makeDraggable(p, p, pLp)
+        makeDraggable(p, p, pLp) {}
         wm.addView(p, pLp)
         panel = p
+        panelLp = pLp
 
         refreshIdleState()
         ui.post(ticker)
@@ -115,14 +122,75 @@ class TapService : AccessibilityService() {
     fun hideOverlay() {
         disarm()
         ui.removeCallbacks(ticker)
-        marker?.let { wm.removeView(it) }
+        removeMarkers()
         panel?.let { wm.removeView(it) }
-        marker = null
-        markerLp = null
         panel = null
+        panelLp = null
         clockText = null
         stateText = null
         startButton = null
+    }
+
+    /** 設定(プリセットの読み込みなど)が変わったとき、表示中のマーカーを作り直す。 */
+    fun reloadFromPrefs() {
+        if (panel == null) return
+        disarm()
+        val prefs = Prefs.load(this)
+        useNtp = prefs.useNtp
+        removeMarkers()
+        createMarkers(prefs.points)
+        refreshIdleState()
+    }
+
+    private fun createMarkers(points: List<Point>) {
+        if (points.isEmpty()) addMarkerAt(defaultPoint(0)) else points.forEach { addMarkerAt(it) }
+    }
+
+    private fun removeMarkers() {
+        markers.forEach { wm.removeView(it.view) }
+        markers.clear()
+    }
+
+    private fun defaultPoint(index: Int): Point {
+        val size = dp(56)
+        val metrics = resources.displayMetrics
+        return Point(
+            metrics.widthPixels / 2 - size / 2 + index * dp(28),
+            metrics.heightPixels / 2 - size / 2 + index * dp(28),
+        )
+    }
+
+    private fun addMarkerAt(point: Point) {
+        val size = dp(56)
+        val view = MarkerView(this, markers.size + 1)
+        val lp = overlayParams(size, size).apply {
+            x = point.x
+            y = point.y
+        }
+        makeDraggable(view, view, lp) { savePoints() }
+        wm.addView(view, lp)
+        markers.add(Marker(view, lp))
+    }
+
+    private fun addMarker() {
+        if (armed) return
+        if (markers.size >= Prefs.MAX_MARKERS) {
+            Toast.makeText(this, "マーカーは${Prefs.MAX_MARKERS}個までです", Toast.LENGTH_SHORT).show()
+            return
+        }
+        addMarkerAt(defaultPoint(markers.size))
+        savePoints()
+    }
+
+    private fun removeLastMarker() {
+        if (armed || markers.size <= 1) return
+        val last = markers.removeAt(markers.size - 1)
+        wm.removeView(last.view)
+        savePoints()
+    }
+
+    private fun savePoints() {
+        Prefs.load(this).copy(points = markers.map { Point(it.lp.x, it.lp.y) }).save(this)
     }
 
     private fun overlayParams(w: Int, h: Int) = WindowManager.LayoutParams(
@@ -163,6 +231,8 @@ class TapService : AccessibilityService() {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         startButton = panelButton("▶") { if (armed) disarm() else arm() }
         row.addView(startButton)
+        row.addView(panelButton("＋") { addMarker() })
+        row.addView(panelButton("－") { removeLastMarker() })
         row.addView(panelButton("⚙") {
             startActivity(
                 Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -175,14 +245,14 @@ class TapService : AccessibilityService() {
 
     private fun panelButton(label: String, onClick: () -> Unit) = TextView(this).apply {
         text = label
-        textSize = 22f
+        textSize = 20f
         gravity = Gravity.CENTER
         setTextColor(Color.WHITE)
         background = GradientDrawable().apply {
             setColor(0xFF334155.toInt())
             cornerRadius = dp(10).toFloat()
         }
-        layoutParams = LinearLayout.LayoutParams(dp(52), dp(44)).apply {
+        layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply {
             topMargin = dp(6)
             rightMargin = dp(6)
         }
@@ -191,7 +261,7 @@ class TapService : AccessibilityService() {
 
     /** handle をドラッグすると window を移動する。動かさずに離した場合はクリック扱い。 */
     @SuppressLint("ClickableViewAccessibility")
-    private fun makeDraggable(handle: View, window: View, lp: WindowManager.LayoutParams) {
+    private fun makeDraggable(handle: View, window: View, lp: WindowManager.LayoutParams, onDrop: () -> Unit) {
         var downX = 0f
         var downY = 0f
         var startX = 0
@@ -209,6 +279,7 @@ class TapService : AccessibilityService() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (abs(e.rawX - downX) < dp(4) && abs(e.rawY - downY) < dp(4)) handle.performClick()
+                    else onDrop()
                 }
             }
             true
@@ -218,35 +289,41 @@ class TapService : AccessibilityService() {
     // ---- 待機とタップ ----
 
     private fun arm() {
-        val m = marker ?: return
+        if (markers.isEmpty()) return
         val prefs = Prefs.load(this)
-        val loc = IntArray(2)
-        m.getLocationOnScreen(loc)
-        val x = loc[0] + m.width / 2f
-        val y = loc[1] + m.height / 2f
+        useNtp = prefs.useNtp
 
-        val first = prefs.nextTargetMillis() + prefs.offsetMs
+        // 各マーカーの中心(画面座標)を番号順に求める
+        val taps = markers.map { m ->
+            val loc = IntArray(2)
+            m.view.getLocationOnScreen(loc)
+            floatArrayOf(loc[0] + m.view.width / 2f, loc[1] + m.view.height / 2f)
+        }
+
+        val first = prefs.nextTargetMillis(now()) + prefs.offsetMs
         targetAt = first
         armed = true
+        finalSyncDone = false
         val myGen = generation.incrementAndGet()
 
         // マーカー自身がタップを受け取らないよう、待機中はタッチを素通しにする
-        setMarkerTouchable(false)
-        m.armed = true
-        m.invalidate()
+        setMarkersArmed(true)
+        setKeepScreenOn(true)
         startButton?.text = "■"
 
+        val total = prefs.count * taps.size
         Thread({
             var done = 0
-            while (done < prefs.count) {
+            while (done < total) {
                 if (!waitUntil(first + done * prefs.intervalMs, myGen)) return@Thread
-                tap(x, y)
+                val p = taps[done % taps.size]
+                tap(p[0], p[1])
                 done++
             }
             ui.post {
                 if (generation.get() == myGen) {
                     disarm()
-                    Toast.makeText(this, "タップ完了(${prefs.count}回)", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "タップ完了(${total}回)", Toast.LENGTH_SHORT).show()
                 }
             }
         }, "tap-timer").apply {
@@ -258,25 +335,43 @@ class TapService : AccessibilityService() {
     private fun disarm() {
         generation.incrementAndGet()
         armed = false
-        setMarkerTouchable(true)
-        marker?.let { it.armed = false; it.invalidate() }
+        setMarkersArmed(false)
+        setKeepScreenOn(false)
         refreshIdleState()
+    }
+
+    /**
+     * 待機が長いと端末内部の時計が少しずつずれるので、標準時刻を取り直す。
+     * 古くなったときと、タップの少し前(残り15〜45秒)に1回行う。
+     */
+    private fun resyncIfNeeded(remaining: Long) {
+        if (!useNtp || remaining < 15_000) return
+        val nearTarget = remaining < 45_000 && !finalSyncDone && TimeSync.ageMs() > 30_000
+        if (nearTarget || TimeSync.ageMs() > RESYNC_AGE_MS) {
+            if (nearTarget) finalSyncDone = true
+            TimeSync.syncAsync()
+        }
     }
 
     private fun refreshIdleState() {
         if (armed) return
         startButton?.text = "▶"
-        stateText?.text = "設定 ${Prefs.load(this).targetLabel()}"
+        val clock = when {
+            !useNtp -> "端末時計"
+            TimeSync.synced -> "標準時刻"
+            else -> "未同期"
+        }
+        stateText?.text = "設定 ${Prefs.load(this).targetLabel()}・$clock"
     }
 
     /**
-     * 端末時計が time になるまで待つ。直前までは sleep、最後の数ミリ秒はスピンして精度を出す。
+     * 時刻が time になるまで待つ。直前までは sleep、最後の数ミリ秒はスピンして精度を出す。
      * 途中で中断されたら false。
      */
     private fun waitUntil(time: Long, myGen: Int): Boolean {
         while (true) {
             if (generation.get() != myGen) return false
-            val remaining = time - System.currentTimeMillis()
+            val remaining = time - now()
             if (remaining <= 0) return true
             if (remaining > 3) Thread.sleep(minOf(remaining - 3, 20))
         }
@@ -290,12 +385,23 @@ class TapService : AccessibilityService() {
         dispatchGesture(gesture, null, null)
     }
 
-    private fun setMarkerTouchable(touchable: Boolean) {
-        val m = marker ?: return
-        val lp = markerLp ?: return
-        lp.flags = if (touchable) lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-        else lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        if (m.isAttachedToWindow) wm.updateViewLayout(m, lp)
+    private fun setMarkersArmed(armedNow: Boolean) {
+        for (m in markers) {
+            m.lp.flags = if (armedNow) m.lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            else m.lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            if (m.view.isAttachedToWindow) wm.updateViewLayout(m.view, m.lp)
+            m.view.armed = armedNow
+            m.view.invalidate()
+        }
+    }
+
+    /** 待機中は画面が消えないようにする(画面が消えるとタップできないため)。 */
+    private fun setKeepScreenOn(on: Boolean) {
+        val p = panel ?: return
+        val lp = panelLp ?: return
+        lp.flags = if (on) lp.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        else lp.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
+        if (p.isAttachedToWindow) wm.updateViewLayout(p, lp)
     }
 
     private fun formatRemaining(ms: Long): String {
@@ -309,8 +415,8 @@ class TapService : AccessibilityService() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    /** タップ位置を示す照準マーカー。中心がタップ位置。 */
-    private class MarkerView(context: Context) : View(context) {
+    /** タップ位置を示す照準マーカー。中心がタップ位置で、右上の数字がタップする順番。 */
+    private class MarkerView(context: Context, private val number: Int) : View(context) {
         var armed = false
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -335,6 +441,20 @@ class TapService : AccessibilityService() {
 
             paint.style = Paint.Style.FILL
             canvas.drawCircle(cx, cy, 4f, paint)
+
+            // 順番の数字(白フチ付きで背景を問わず読めるようにする)
+            paint.textSize = r * 0.62f
+            paint.typeface = Typeface.DEFAULT_BOLD
+            paint.textAlign = Paint.Align.CENTER
+            val tx = cx + r * 0.5f
+            val ty = cy - r * 0.28f
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 5f
+            paint.color = Color.WHITE
+            canvas.drawText(number.toString(), tx, ty, paint)
+            paint.style = Paint.Style.FILL
+            paint.color = 0xFF0F172A.toInt()
+            canvas.drawText(number.toString(), tx, ty, paint)
         }
     }
 }
