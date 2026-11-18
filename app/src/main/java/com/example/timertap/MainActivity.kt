@@ -1,10 +1,15 @@
 package com.example.timertap
 
 import android.app.Activity
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.view.MotionEvent
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -59,6 +64,15 @@ class MainActivity : Activity() {
             second.setText("0")
             millis.setText("0")
         }
+        bindStep(R.id.hourUp, 3_600_000L, 1)
+        bindStep(R.id.hourDown, 3_600_000L, -1)
+        bindStep(R.id.minuteUp, 60_000L, 1)
+        bindStep(R.id.minuteDown, 60_000L, -1)
+        bindStep(R.id.secondUp, 1_000L, 1)
+        bindStep(R.id.secondDown, 1_000L, -1)
+        bindStep(R.id.millisUp, 1L, 1)
+        bindStep(R.id.millisDown, 1L, -1)
+
         findViewById<Button>(R.id.btnMidnight).setOnClickListener {
             hour.setText("0")
             minute.setText("0")
@@ -94,6 +108,57 @@ class MainActivity : Activity() {
         status.text = if (TapService.instance != null) "ユーザー補助サービス: 有効 ✓"
         else "ユーザー補助サービス: 無効(タップするには有効化が必要です)"
         if (useNtp.isChecked) sync() else showNtpStatus()
+    }
+
+    // ---- 時刻の＋／－ ----
+
+    private val repeatHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * ＋／－ボタン。押すと unit×sign だけ時刻を動かし、長押し中は連続で動かす。
+     * ミリ秒は長押しが続くと10ずつ動かして速くする。
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun bindStep(id: Int, unit: Long, sign: Int) {
+        val button = findViewById<Button>(id)
+        var repeats = 0
+        val repeater = object : Runnable {
+            override fun run() {
+                repeats++
+                val step = if (unit == 1L && repeats > 15) 10L else 1L
+                shiftTime(unit * step * sign)
+                repeatHandler.postDelayed(this, if (repeats > 15) 50L else 90L)
+            }
+        }
+        button.setOnTouchListener { v: View, e: MotionEvent ->
+            when (e.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    repeats = 0
+                    v.isPressed = true
+                    shiftTime(unit * sign)
+                    repeatHandler.postDelayed(repeater, 400L)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    repeatHandler.removeCallbacks(repeater)
+                }
+            }
+            true
+        }
+        // ユーザー補助(TalkBack など)からの操作用
+        button.setOnClickListener { shiftTime(unit * sign) }
+    }
+
+    /** 入力中の時刻を deltaMs だけ動かす。24時間で一周し、繰り上がり・繰り下がりする。 */
+    private fun shiftTime(deltaMs: Long) {
+        fun EditText.num(max: Long) = (text.toString().trim().toLongOrNull() ?: 0L).coerceIn(0, max)
+        val day = 86_400_000L
+        val current = hour.num(23) * 3_600_000 + minute.num(59) * 60_000 + second.num(59) * 1_000 + millis.num(999)
+        val t = ((current + deltaMs) % day + day) % day
+        hour.setText((t / 3_600_000).toString())
+        minute.setText((t / 60_000 % 60).toString())
+        second.setText((t / 1_000 % 60).toString())
+        millis.setText((t % 1_000).toString())
     }
 
     // ---- 時刻の同期 ----

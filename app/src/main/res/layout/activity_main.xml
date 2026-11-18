@@ -36,22 +36,64 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <EditText android:id="@+id/hour" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="2" android:gravity="center" android:hint="時" android:inputType="number"
-                android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text=":" android:textSize="24sp" />
-            <EditText android:id="@+id/minute" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="2" android:gravity="center" android:hint="分" android:inputType="number"
-                android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text=":" android:textSize="24sp" />
-            <EditText android:id="@+id/second" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="2" android:gravity="center" android:hint="秒" android:inputType="number"
-                android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="." android:textSize="24sp" />
-            <EditText android:id="@+id/millis" android:layout_width="0dp" android:layout_height="wrap_content"
-                android:layout_weight="3" android:gravity="center" android:hint="ミリ秒" android:inputType="number"
-                android:maxLength="3" android:textSize="24sp" android:importantForAutofill="no" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="2" android:gravity="center_horizontal" android:orientation="vertical">
+                <Button android:id="@+id/hourUp" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="＋"
+                    android:textSize="20sp" android:contentDescription="時を1増やす" />
+                <EditText android:id="@+id/hour" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center" android:hint="時" android:inputType="number"
+                    android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
+                <Button android:id="@+id/hourDown" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="－"
+                    android:textSize="20sp" android:contentDescription="時を1減らす" />
+            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginHorizontal="2dp" android:text=":" android:textSize="24sp" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="2" android:gravity="center_horizontal" android:orientation="vertical">
+                <Button android:id="@+id/minuteUp" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="＋"
+                    android:textSize="20sp" android:contentDescription="分を1増やす" />
+                <EditText android:id="@+id/minute" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center" android:hint="分" android:inputType="number"
+                    android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
+                <Button android:id="@+id/minuteDown" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="－"
+                    android:textSize="20sp" android:contentDescription="分を1減らす" />
+            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginHorizontal="2dp" android:text=":" android:textSize="24sp" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="2" android:gravity="center_horizontal" android:orientation="vertical">
+                <Button android:id="@+id/secondUp" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="＋"
+                    android:textSize="20sp" android:contentDescription="秒を1増やす" />
+                <EditText android:id="@+id/second" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center" android:hint="秒" android:inputType="number"
+                    android:maxLength="2" android:textSize="24sp" android:importantForAutofill="no" />
+                <Button android:id="@+id/secondDown" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="－"
+                    android:textSize="20sp" android:contentDescription="秒を1減らす" />
+            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginHorizontal="2dp" android:text="." android:textSize="24sp" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="3" android:gravity="center_horizontal" android:orientation="vertical">
+                <Button android:id="@+id/millisUp" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="＋"
+                    android:textSize="20sp" android:contentDescription="ミリ秒を1増やす" />
+                <EditText android:id="@+id/millis" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center" android:hint="ミリ秒" android:inputType="number"
+                    android:maxLength="3" android:textSize="24sp" android:importantForAutofill="no" />
+                <Button android:id="@+id/millisDown" android:layout_width="match_parent" android:layout_height="44dp"
+                    android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp" android:text="－"
+                    android:textSize="20sp" android:contentDescription="ミリ秒を1減らす" />
+            </LinearLayout>
         </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="＋／－は長押しで連続して変わります。繰り上がり・繰り下がりもします(例: 59秒で＋ → 次の分の0秒)"
+            android:textSize="12sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
